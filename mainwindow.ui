@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="enabled">
+   <bool>true</bool>
+  </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>411</width>
+    <height>691</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Calculator</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QMainWindow {
+	background-color: #024873;
+}
+
+QLabel {
+	font-family: &quot;Open Sans&quot;;
+    font-weight: 600;
+    color: #FFFFFF;
+    background-color: #04BFAD;
+    letter-spacing: 0.5px;
+
+	qproperty-alignment: 'AlignRight | AlignBottom';
+    qproperty-wordWrap: true;
+}
+QLabel#lbl_display {
+	font-size: 50px;
+    padding: 10px;
+    border-radius: 20px;
+	min-height: 80px;
+}
+QLabel#lbl_expression {
+	font-size: 20px;
+    padding: 10px;
+}
+
+QPushButton {
+	font-family: &quot;Open Sans&quot;;
+	font-size: 24px;
+	font-weight: 600;
+
+	border-radius: 35px;
+	border: none;
+	max-width: 70px;
+	max-height: 70px;
+}
+
+QPushButton#btn_digit_0,
+QPushButton#btn_digit_1,
+QPushButton#btn_digit_2,
+QPushButton#btn_digit_3,
+QPushButton#btn_digit_4,
+QPushButton#btn_digit_5,
+QPushButton#btn_digit_6,
+QPushButton#btn_digit_7,
+QPushButton#btn_digit_8,
+QPushButton#btn_digit_9,
+QPushButton#btn_decimal {
+	background-color: #B0D1D8;
+	color: #024873;
+}
+QPushButton#btn_digit_0:pressed,
+QPushButton#btn_digit_1:pressed,
+QPushButton#btn_digit_2:pressed,
+QPushButton#btn_digit_3:pressed,
+QPushButton#btn_digit_4:pressed,
+QPushButton#btn_digit_5:pressed,
+QPushButton#btn_digit_6:pressed,
+QPushButton#btn_digit_7:pressed,
+QPushButton#btn_digit_8:pressed,
+QPushButton#btn_digit_9:pressed,
+QPushButton#btn_decimal:pressed {
+    background-color: #F7E425;
+    color: #FFFFFF;
+}
+
+QPushButton#btn_op_plus,
+QPushButton#btn_op_minus,
+QPushButton#btn_op_mult,
+QPushButton#btn_op_division,
+QPushButton#btn_paren,
+QPushButton#btn_sign,
+QPushButton#btn_percent,
+QPushButton#btn_equals {
+	background-color: #0889A6;
+	color: #FFFFFF;
+}
+QPushButton#btn_op_plus:pressed,
+QPushButton#btn_op_minus:pressed,
+QPushButton#btn_op_mult:pressed,
+QPushButton#btn_op_division:pressed,
+QPushButton#btn_paren:pressed,
+QPushButton#btn_sign:pressed,
+QPushButton#btn_percent:pressed,
+QPushButton#btn_equals:pressed {
+    background-color: #F7E425;
+    color: #FFFFFF;
+}
+
+QPushButton#btn_clear {
+	background-color: #F25E5E;
+	color: #FFFFFF;
+}
+QPushButton#btn_clear:pressed {
+    background-color: #F7E425;
+    color: #FFFFFF;
+}</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="autoFillBackground">
+    <bool>false</bool>
+   </property>
+   <property name="styleSheet">
+    <string notr="true"/>
+   </property>
+   <widget class="QLabel" name="lbl_display">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>-50</y>
+      <width>411</width>
+      <height>271</height>
+     </rect>
+    </property>
+    <property name="layoutDirection">
+     <enum>Qt::LayoutDirection::LeftToRight</enum>
+    </property>
+    <property name="autoFillBackground">
+     <bool>false</bool>
+    </property>
+    <property name="text">
+     <string>0</string>
+    </property>
+    <property name="textFormat">
+     <enum>Qt::TextFormat::PlainText</enum>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignmentFlag::AlignBottom|Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing</set>
+    </property>
+    <property name="wordWrap">
+     <bool>true</bool>
+    </property>
+    <property name="margin">
+     <number>0</number>
+    </property>
+    <property name="indent">
+     <number>0</number>
+    </property>
+   </widget>
+   <widget class="QLabel" name="lbl_expression">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>411</width>
+      <height>71</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
+   <widget class="QWidget" name="gridLayoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>220</y>
+      <width>411</width>
+      <height>471</height>
+     </rect>
+    </property>
+    <layout class="QGridLayout" name="gridLayout">
+     <item row="2" column="0">
+      <widget class="QPushButton" name="btn_digit_4">
+       <property name="text">
+        <string>4</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0">
+      <widget class="QPushButton" name="btn_clear">
+       <property name="text">
+        <string>C</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QPushButton" name="btn_digit_2">
+       <property name="text">
+        <string>2</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="3">
+      <widget class="QPushButton" name="btn_op_division">
+       <property name="text">
+        <string>/</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QPushButton" name="btn_digit_0">
+       <property name="text">
+        <string>0</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QPushButton" name="btn_digit_8">
+       <property name="text">
+        <string>8</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="0">
+      <widget class="QPushButton" name="btn_paren">
+       <property name="text">
+        <string>()</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QPushButton" name="btn_digit_7">
+       <property name="text">
+        <string>7</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QPushButton" name="btn_digit_5">
+       <property name="text">
+        <string>5</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QPushButton" name="btn_sign">
+       <property name="text">
+        <string>+/-</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QPushButton" name="btn_digit_1">
+       <property name="text">
+        <string>1</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="2">
+      <widget class="QPushButton" name="btn_percent">
+       <property name="text">
+        <string>%</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="2">
+      <widget class="QPushButton" name="btn_digit_9">
+       <property name="text">
+        <string>9</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="3">
+      <widget class="QPushButton" name="btn_op_mult">
+       <property name="text">
+        <string>*</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="2">
+      <widget class="QPushButton" name="btn_digit_6">
+       <property name="text">
+        <string>6</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="3">
+      <widget class="QPushButton" name="btn_op_minus">
+       <property name="text">
+        <string>-</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="2">
+      <widget class="QPushButton" name="btn_digit_3">
+       <property name="styleSheet">
+        <string notr="true">QPushButton:pressed {
+        background-color: #F7E425;
+        color: #024873;
+    }</string>
+       </property>
+       <property name="text">
+        <string>3</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="3">
+      <widget class="QPushButton" name="btn_op_plus">
+       <property name="text">
+        <string>+</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="2">
+      <widget class="QPushButton" name="btn_decimal">
+       <property name="text">
+        <string>.</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="3">
+      <widget class="QPushButton" name="btn_equals">
+       <property name="text">
+        <string>=</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+   <zorder>lbl_display</zorder>
+   <zorder>gridLayoutWidget</zorder>
+   <zorder>lbl_expression</zorder>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
