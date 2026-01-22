@@ -1,7 +1,7 @@
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
+#pragma once
 
 #include <QMainWindow>
+#include <memory>
 
 class QTimer;
 class QStackedWidget;
@@ -20,25 +20,24 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = nullptr);
-    ~MainWindow();
+    explicit MainWindow(QWidget *parent = nullptr);
+    ~MainWindow() override;
 
 private:
-    Ui::MainWindow *ui;
-    CalculatorModel* model_ = nullptr;
+    std::unique_ptr<Ui::MainWindow> ui_;
+    std::unique_ptr<CalculatorModel> model_;
 
-    QStackedWidget* stackedWidget_ = nullptr;
-    SecretMenu* secretMenu_ = nullptr;
+    QStackedWidget* stacked_widget_ = nullptr;
+    std::unique_ptr<SecretMenu> secret_menu_;
 
-    QTimer* equalLongPressTimer_ = nullptr;
-    QTimer* secretCodeTimer_ = nullptr;
-    bool secretArmed_ = false;
-    QString secretCodeBuffer_;
+    std::unique_ptr<QTimer> equal_long_press_timer_;
+    std::unique_ptr<QTimer> secret_code_timer_;
+    bool secret_armed_ = false;
+    QString secret_code_buffer_;
 
-    QString formatWithSpaces(const QString& text, int groupSize);
+    QString FormatWithSpaces(const QString& text, int group_size);
 
-    void handleDigit(int digit);
-    void openSecretMenu();
-    void closeSecretMenu();
+    void HandleDigit(int digit);
+    void OpenSecretMenu();
+    void CloseSecretMenu();
 };
-#endif // MAINWINDOW_H

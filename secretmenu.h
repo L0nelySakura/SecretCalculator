@@ -1,5 +1,4 @@
-#ifndef SECRETMENU_H
-#define SECRETMENU_H
+#pragma once
 
 #include <QWidget>
 
@@ -18,10 +17,9 @@ public:
     ~SecretMenu();
 
 signals:
-    void backClicked();
+    void BackClicked();
 
 private:
-    Ui::SecretMenu *ui;
+    std::unique_ptr<Ui::SecretMenu> ui_;
 };
 
-#endif // SECRETMENU_H

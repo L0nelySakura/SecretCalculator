@@ -6,22 +6,23 @@
 #include <vector>
 
 namespace {
-constexpr int kDefaultDivPrecision = 50; // знаков после точки при делении
 
-static bool isAllDigits(const std::string& s) {
-    return std::all_of(s.begin(), s.end(), [](unsigned char c) { return std::isdigit(c) != 0; });
+constexpr int kDefaultDivPrecision = 40;
+
+bool IsAllDigits(const std::string& s) {
+    return std::all_of(s.begin(), s.end(),
+                       [](unsigned char c) { return std::isdigit(c) != 0; });
 }
 
-static int compareIntStrings(const std::string& a, const std::string& b) {
-    // a и b без лидирующих нулей (кроме "0")
+int CompareIntStrings(const std::string& a, const std::string& b) {
     if (a.size() != b.size())
         return (a.size() < b.size()) ? -1 : 1;
     if (a == b)
         return 0;
-    return (a < b) ? -1 : 1; // лексикографически работает при одинаковой длине
+    return (a < b) ? -1 : 1;
 }
 
-static std::string mulIntStringByDigit(const std::string& a, int digit) {
+std::string MulIntStringByDigit(const std::string& a, int digit) {
     if (digit == 0 || a == "0")
         return "0";
     int carry = 0;
@@ -39,30 +40,33 @@ static std::string mulIntStringByDigit(const std::string& a, int digit) {
     std::reverse(out.begin(), out.end());
     return out;
 }
+
 } // namespace
 
 BigNumber::BigNumber() : digits_("0"), scale_(0), negative_(false) {}
 
 BigNumber::BigNumber(const QString& s) : BigNumber(s.toStdString()) {}
 
-BigNumber::BigNumber(const std::string& s) : BigNumber(parse(s)) {}
+BigNumber::BigNumber(const std::string& s) : BigNumber(Parse(s)) {}
 
-BigNumber BigNumber::zero() { return BigNumber(); }
+BigNumber BigNumber::Zero() {
+    return BigNumber();
+}
 
-BigNumber BigNumber::one() { return BigNumber::fromParts("1", 0, false); }
+BigNumber BigNumber::One() {
+    return BigNumber::FromParts("1", 0, false);
+}
 
-BigNumber BigNumber::fromParts(std::string digits, int scale, bool negative)
-{
+BigNumber BigNumber::FromParts(std::string digits, int scale, bool negative) {
     BigNumber n;
     n.digits_ = std::move(digits);
     n.scale_ = scale;
     n.negative_ = negative;
-    n.normalize();
+    n.Normalize();
     return n;
 }
 
-BigNumber BigNumber::parse(const std::string& input)
-{
+BigNumber BigNumber::Parse(const std::string& input) {
     std::string s;
     s.reserve(input.size());
     for (unsigned char c : input) {
@@ -85,104 +89,87 @@ BigNumber BigNumber::parse(const std::string& input)
     if (pos >= s.size())
         throw std::invalid_argument("BigNumber: sign without digits");
 
-    std::string intPart;
-    std::string fracPart;
-    bool seenDot = false;
+    std::string int_part;
+    std::string frac_part;
+    bool seen_dot = false;
 
     for (; pos < s.size(); ++pos) {
         char c = s[pos];
         if (c == '.') {
-            if (seenDot)
+            if (seen_dot)
                 throw std::invalid_argument("BigNumber: multiple dots");
-            seenDot = true;
+            seen_dot = true;
             continue;
         }
         if (!std::isdigit(static_cast<unsigned char>(c)))
             throw std::invalid_argument("BigNumber: invalid char");
-        if (!seenDot)
-            intPart.push_back(c);
+        if (!seen_dot)
+            int_part.push_back(c);
         else
-            fracPart.push_back(c);
+            frac_part.push_back(c);
     }
 
-    if (intPart.empty() && fracPart.empty())
+    if (int_part.empty() && frac_part.empty())
         throw std::invalid_argument("BigNumber: no digits");
 
-    if (intPart.empty())
-        intPart = "0";
+    if (int_part.empty())
+        int_part = "0";
 
-    // Убираем ведущие нули из целой части
-    stripLeadingZeros(intPart);
-    if (intPart.empty())
-        intPart = "0";
+    StripLeadingZeros(int_part);
+    if (int_part.empty())
+        int_part = "0";
 
-    // Убираем лишние нули в конце дробной части
-    while (!fracPart.empty() && fracPart.back() == '0') {
-        fracPart.pop_back();
+    while (!frac_part.empty() && frac_part.back() == '0') {
+        frac_part.pop_back();
     }
 
-    std::string digits = intPart + fracPart;
-    int scale = static_cast<int>(fracPart.size());
+    std::string digits = int_part + frac_part;
+    int scale = static_cast<int>(frac_part.size());
 
-    // Если digits получился "0" и scale > 0, оставляем как есть
-    // normalize() позаботится об этом
-
-    return BigNumber::fromParts(std::move(digits), scale, neg);
+    return BigNumber::FromParts(std::move(digits), scale, neg);
 }
 
-
-void BigNumber::stripLeadingZeros(std::string& s)
-{
+void BigNumber::StripLeadingZeros(std::string& s) {
     size_t i = 0;
     while (i + 1 < s.size() && s[i] == '0')
         ++i;
     if (i > 0)
         s.erase(0, i);
 }
-void BigNumber::normalize()
-{
+
+void BigNumber::Normalize() {
     if (digits_.empty())
         digits_ = "0";
 
-    // Убираем лидирующие нули (только до точки)
-    stripLeadingZeros(digits_);
-
-    // Если после удаления ведущих нулей digits_ стал пустым
+    StripLeadingZeros(digits_);
     if (digits_.empty())
         digits_ = "0";
 
-    // Убираем лишние нули в дробной части
     while (scale_ > 0 && digits_.size() > 1 && digits_.back() == '0') {
         digits_.pop_back();
         --scale_;
     }
 
-    // Очень важная часть: если digits_ слишком короткое для текущего scale,
-    // нужно добавить ведущие нули
     if (scale_ > 0) {
-        int integerDigits = static_cast<int>(digits_.size()) - scale_;
-        if (integerDigits <= 0) {
-            // Нужно добавить ведущие нули
-            int zerosToAdd = -integerDigits + 1; // +1 для целой части "0"
-            digits_.insert(0, static_cast<size_t>(zerosToAdd), '0');
+        int integer_digits = static_cast<int>(digits_.size()) - scale_;
+        if (integer_digits <= 0) {
+            int zeros_to_add = -integer_digits + 1;
+            digits_.insert(0, static_cast<size_t>(zeros_to_add), '0');
         }
     }
 
-    // Ноль всегда без знака
     if (digits_ == "0") {
         negative_ = false;
         scale_ = 0;
     }
 }
 
-QString BigNumber::toQString() const
-{
-    std::string s = toStdString();
+QString BigNumber::ToQString() const {
+    std::string s = ToStdString();
     return QString::fromStdString(s);
 }
 
-std::string BigNumber::toStdString() const
-{
+std::string BigNumber::ToStdString() const {
     std::string out;
     out.reserve(digits_.size() + 2);
 
@@ -208,7 +195,6 @@ std::string BigNumber::toStdString() const
     out.push_back('.');
     out.append(digits_.begin() + split, digits_.end());
 
-    // Убираем лишние нули в конце дробной части
     while (!out.empty() && out.back() == '0' && out.find('.') != std::string::npos) {
         out.pop_back();
     }
@@ -219,19 +205,22 @@ std::string BigNumber::toStdString() const
     return out;
 }
 
-bool BigNumber::isZero() const { return digits_ == "0"; }
-bool BigNumber::isNegative() const { return negative_ && !isZero(); }
-
-int BigNumber::compareAbsIntStrings(const std::string& a, const std::string& b)
-{
-    std::string aa = a, bb = b;
-    stripLeadingZeros(aa);
-    stripLeadingZeros(bb);
-    return compareIntStrings(aa, bb);
+bool BigNumber::IsZero() const {
+    return digits_ == "0";
 }
 
-std::string BigNumber::addAbsIntStrings(const std::string& a, const std::string& b)
-{
+bool BigNumber::IsNegative() const {
+    return negative_ && !IsZero();
+}
+
+int BigNumber::CompareAbsIntStrings(const std::string& a, const std::string& b) {
+    std::string aa = a, bb = b;
+    StripLeadingZeros(aa);
+    StripLeadingZeros(bb);
+    return CompareIntStrings(aa, bb);
+}
+
+std::string BigNumber::AddAbsIntStrings(const std::string& a, const std::string& b) {
     int i = static_cast<int>(a.size()) - 1;
     int j = static_cast<int>(b.size()) - 1;
     int carry = 0;
@@ -245,12 +234,11 @@ std::string BigNumber::addAbsIntStrings(const std::string& a, const std::string&
         carry = sum / 10;
     }
     std::reverse(out.begin(), out.end());
-    stripLeadingZeros(out);
+    StripLeadingZeros(out);
     return out;
 }
 
-std::string BigNumber::subAbsIntStrings(const std::string& a, const std::string& b)
-{
+std::string BigNumber::SubAbsIntStrings(const std::string& a, const std::string& b) {
     // a >= b
     int i = static_cast<int>(a.size()) - 1;
     int j = static_cast<int>(b.size()) - 1;
@@ -270,12 +258,11 @@ std::string BigNumber::subAbsIntStrings(const std::string& a, const std::string&
         --j;
     }
     std::reverse(out.begin(), out.end());
-    stripLeadingZeros(out);
+    StripLeadingZeros(out);
     return out;
 }
 
-std::string BigNumber::mulAbsIntStrings(const std::string& a, const std::string& b)
-{
+std::string BigNumber::MulAbsIntStrings(const std::string& a, const std::string& b) {
     if (a == "0" || b == "0")
         return "0";
     std::vector<int> tmp(a.size() + b.size(), 0);
@@ -295,52 +282,45 @@ std::string BigNumber::mulAbsIntStrings(const std::string& a, const std::string&
         ++start;
     for (size_t i = start; i < tmp.size(); ++i)
         out.push_back(static_cast<char>('0' + tmp[i]));
-    stripLeadingZeros(out);
+    StripLeadingZeros(out);
     return out;
 }
 
-void BigNumber::alignScales(BigNumber& a, BigNumber& b)
-{
+void BigNumber::AlignScales(BigNumber& a, BigNumber& b) {
     if (a.scale_ == b.scale_)
         return;
+    int max_scale = std::max(a.scale_, b.scale_);
 
-    // Вычисляем максимальный scale
-    int maxScale = std::max(a.scale_, b.scale_);
-
-    // Выравниваем scale у числа a
-    if (a.scale_ < maxScale) {
-        int diff = maxScale - a.scale_;
+    if (a.scale_ < max_scale) {
+        int diff = max_scale - a.scale_;
         a.digits_.append(static_cast<size_t>(diff), '0');
-        a.scale_ = maxScale;
+        a.scale_ = max_scale;
     }
 
-    // Выравниваем scale у числа b
-    if (b.scale_ < maxScale) {
-        int diff = maxScale - b.scale_;
+    if (b.scale_ < max_scale) {
+        int diff = max_scale - b.scale_;
         b.digits_.append(static_cast<size_t>(diff), '0');
-        b.scale_ = maxScale;
+        b.scale_ = max_scale;
     }
 
-    // Не вызываем normalize() здесь, чтобы не потерять выровненные нули
-    // Просто убедимся, что digits_ не пустая
     if (a.digits_.empty()) a.digits_ = "0";
     if (b.digits_.empty()) b.digits_ = "0";
 }
 
-std::pair<std::string, std::string> BigNumber::divModAbsIntStrings(const std::string& num,
-                                                                   const std::string& den)
-{
+std::pair<std::string, std::string> BigNumber::DivModAbsIntStrings(
+    const std::string& num, const std::string& den) {
+
     if (den == "0")
         throw std::domain_error("BigNumber: division by zero");
     if (num == "0")
         return {"0", "0"};
 
     std::string d = den;
-    stripLeadingZeros(d);
+    StripLeadingZeros(d);
     std::string n = num;
-    stripLeadingZeros(n);
+    StripLeadingZeros(n);
 
-    if (compareIntStrings(n, d) < 0)
+    if (CompareIntStrings(n, d) < 0)
         return {"0", n};
 
     std::string quotient;
@@ -348,166 +328,144 @@ std::pair<std::string, std::string> BigNumber::divModAbsIntStrings(const std::st
 
     std::string remainder = "0";
     for (char c : n) {
-        // remainder = remainder*10 + digit
         if (remainder != "0")
             remainder.push_back(c);
         else
             remainder = std::string(1, c);
-        stripLeadingZeros(remainder);
+        StripLeadingZeros(remainder);
 
-        int qDigit = 0;
-        if (compareIntStrings(remainder, d) >= 0) {
-            // подбираем qDigit 1..9
+        int q_digit = 0;
+        if (CompareIntStrings(remainder, d) >= 0) {
             int lo = 1, hi = 9;
             while (lo <= hi) {
                 int mid = (lo + hi) / 2;
-                std::string prod = mulIntStringByDigit(d, mid);
-                int cmp = compareIntStrings(prod, remainder);
+                std::string prod = MulIntStringByDigit(d, mid);
+                int cmp = CompareIntStrings(prod, remainder);
                 if (cmp <= 0) {
-                    qDigit = mid;
+                    q_digit = mid;
                     lo = mid + 1;
                 } else {
                     hi = mid - 1;
                 }
             }
-            remainder = subAbsIntStrings(remainder, mulIntStringByDigit(d, qDigit));
+            remainder = SubAbsIntStrings(remainder, MulIntStringByDigit(d, q_digit));
         }
-        quotient.push_back(static_cast<char>('0' + qDigit));
+        quotient.push_back(static_cast<char>('0' + q_digit));
     }
-    stripLeadingZeros(quotient);
-    stripLeadingZeros(remainder);
+    StripLeadingZeros(quotient);
+    StripLeadingZeros(remainder);
     return {quotient, remainder};
 }
 
-BigNumber BigNumber::divDecimal(const BigNumber& aIn, const BigNumber& bIn, int fractionalPrecision)
-{
-    if (bIn.isZero())
+BigNumber BigNumber::DivDecimal(const BigNumber& a_in, const BigNumber& b_in,
+                                int fractional_precision) {
+
+    if (b_in.IsZero())
         throw std::domain_error("BigNumber: division by zero");
 
-    BigNumber a = aIn;
-    BigNumber b = bIn;
+    BigNumber a = a_in;
+    BigNumber b = b_in;
     a.negative_ = false;
     b.negative_ = false;
-
-    // a = A / 10^sa, b = B / 10^sb
-    // a/b = (A * 10^(sb - sa)) / B
     const int shift = b.scale_ - a.scale_;
 
     std::string numerator = a.digits_;
     if (shift > 0) {
         numerator.append(static_cast<size_t>(shift), '0');
-    } else if (shift < 0) {
-        // домножим на 10^precision позже; тут оставим как есть
     }
 
-    // Домножаем числитель на 10^precision, чтобы получить дробную часть
-    numerator.append(static_cast<size_t>(fractionalPrecision), '0');
+    numerator.append(static_cast<size_t>(fractional_precision), '0');
+    auto [q, /*r*/ _] = DivModAbsIntStrings(numerator, b.digits_);
 
-    // Если shift < 0, это означает деление на 10^(-shift) => можно эквивалентно увеличить scale результата.
-    // Мы обработаем это через итоговый scale.
-    auto [q, /*r*/ _] = divModAbsIntStrings(numerator, b.digits_);
-
-    int outScale = fractionalPrecision;
+    int out_scale = fractional_precision;
     if (shift < 0) {
-        outScale += (-shift);
+        out_scale += (-shift);
     }
 
-    return BigNumber::fromParts(std::move(q), outScale, false);
+    return BigNumber::FromParts(std::move(q), out_scale, false);
 }
 
-BigNumber BigNumber::operator+(const BigNumber& rhs) const
-{
+BigNumber BigNumber::operator+(const BigNumber& rhs) const {
     BigNumber a = *this;
     BigNumber b = rhs;
-    alignScales(a, b);
+    AlignScales(a, b);
 
     if (a.negative_ == b.negative_) {
-        BigNumber out = fromParts(addAbsIntStrings(a.digits_, b.digits_), a.scale_, a.negative_);
+        BigNumber out = FromParts(AddAbsIntStrings(a.digits_, b.digits_),
+                                  a.scale_, a.negative_);
         return out;
     }
 
-    // разные знаки => вычитание модулей
-    int cmp = compareAbsIntStrings(a.digits_, b.digits_);
+    int cmp = CompareAbsIntStrings(a.digits_, b.digits_);
     if (cmp == 0)
-        return BigNumber::zero();
+        return BigNumber::Zero();
     if (cmp > 0) {
-        return fromParts(subAbsIntStrings(a.digits_, b.digits_), a.scale_, a.negative_);
+        return FromParts(SubAbsIntStrings(a.digits_, b.digits_),
+                         a.scale_, a.negative_);
     }
-    return fromParts(subAbsIntStrings(b.digits_, a.digits_), a.scale_, b.negative_);
+    return FromParts(SubAbsIntStrings(b.digits_, a.digits_),
+                     a.scale_, b.negative_);
 }
 
-BigNumber BigNumber::operator-(const BigNumber& rhs) const
-{
-    BigNumber negRhs = rhs;
-    if (!negRhs.isZero())
-        negRhs.negative_ = !negRhs.negative_;
-    return (*this) + negRhs;
+BigNumber BigNumber::operator-(const BigNumber& rhs) const {
+    BigNumber neg_rhs = rhs;
+    if (!neg_rhs.IsZero())
+        neg_rhs.negative_ = !neg_rhs.negative_;
+    return (*this) + neg_rhs;
 }
 
-BigNumber BigNumber::operator*(const BigNumber& rhs) const
-{
+BigNumber BigNumber::operator*(const BigNumber& rhs) const {
     BigNumber a = *this;
     BigNumber b = rhs;
-    const bool neg = (a.isNegative() != b.isNegative());
+    const bool neg = (a.IsNegative() != b.IsNegative());
     a.negative_ = false;
     b.negative_ = false;
 
-    std::string prod = mulAbsIntStrings(a.digits_, b.digits_);
+    std::string prod = MulAbsIntStrings(a.digits_, b.digits_);
     const int scale = a.scale_ + b.scale_;
-    return fromParts(std::move(prod), scale, neg);
+    return FromParts(std::move(prod), scale, neg);
 }
 
-BigNumber BigNumber::operator/(const BigNumber& rhs) const
-{
-    if (rhs.isZero())
+BigNumber BigNumber::operator/(const BigNumber& rhs) const {
+    if (rhs.IsZero())
         throw std::domain_error("BigNumber: division by zero");
 
-    const bool neg = (this->isNegative() != rhs.isNegative());
-    BigNumber q = divDecimal(*this, rhs, kDefaultDivPrecision);
-    q.negative_ = neg && !q.isZero();
-    q.normalize();
+    const bool neg = (this->IsNegative() != rhs.IsNegative());
+    BigNumber q = DivDecimal(*this, rhs, kDefaultDivPrecision);
+    q.negative_ = neg && !q.IsZero();
+    q.Normalize();
     return q;
 }
 
-BigNumber BigNumber::percent() const
-{
-    // /100 == scale+2
-    return fromParts(digits_, scale_ + 2, negative_);
+BigNumber BigNumber::Percent() const {
+    return FromParts(digits_, scale_ + 2, negative_);
 }
 
-BigNumber BigNumber::operator%(int /*percentToken*/) const
-{
-    return percent();
-}
-
-bool operator==(const BigNumber& a, const BigNumber& b)
-{
+bool operator==(const BigNumber& a, const BigNumber& b) {
     BigNumber aa = a;
     BigNumber bb = b;
-    aa.normalize();
-    bb.normalize();
-    return aa.negative_ == bb.negative_ && aa.scale_ == bb.scale_ && aa.digits_ == bb.digits_;
+    aa.Normalize();
+    bb.Normalize();
+    return aa.negative_ == bb.negative_ &&
+           aa.scale_ == bb.scale_ &&
+           aa.digits_ == bb.digits_;
 }
 
-bool operator<(const BigNumber& a, const BigNumber& b)
-{
+bool operator<(const BigNumber& a, const BigNumber& b) {
     if (a == b)
         return false;
-    if (a.isNegative() != b.isNegative())
-        return a.isNegative();
+    if (a.IsNegative() != b.IsNegative())
+        return a.IsNegative();
 
-    // одинаковый знак: сравниваем модули
     BigNumber aa = a;
     BigNumber bb = b;
     aa.negative_ = false;
     bb.negative_ = false;
-    BigNumber::alignScales(aa, bb);
+    BigNumber::AlignScales(aa, bb);
 
-    int cmp = BigNumber::compareAbsIntStrings(aa.digits_, bb.digits_);
-    if (!a.isNegative()) {
+    int cmp = BigNumber::CompareAbsIntStrings(aa.digits_, bb.digits_);
+    if (!a.IsNegative()) {
         return cmp < 0;
     }
-    // оба отрицательные: больше модуль => меньше число
     return cmp > 0;
 }
-

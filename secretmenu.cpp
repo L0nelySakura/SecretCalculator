@@ -3,13 +3,10 @@
 
 SecretMenu::SecretMenu(QWidget* parent)
     : QWidget(parent)
-    , ui(new Ui::SecretMenu)
+    , ui_(std::make_unique<Ui::SecretMenu>())
 {
-    ui->setupUi(this);
-    connect(ui->btn_back, &QPushButton::clicked, this, &SecretMenu::backClicked);
-}
+    ui_->setupUi(this);
+    connect(ui_->btn_back, &QPushButton::clicked, this, [this]() { emit BackClicked(); });
 
-SecretMenu::~SecretMenu()
-{
-    delete ui;
 }
+SecretMenu::~SecretMenu() = default;

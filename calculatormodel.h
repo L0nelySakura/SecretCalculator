@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <memory>
 
 class CalculatorModel final : public QObject
 {
@@ -9,59 +10,58 @@ class CalculatorModel final : public QObject
 
 public:
     explicit CalculatorModel(QObject* parent = nullptr);
+    ~CalculatorModel() override = default;
 
-    QString expression() const { return expression_; }
-    QString display() const { return display_; }
+    QString Expression() const { return expression_; }
+    QString Display() const { return display_; }
 
 public slots:
-    void clearAll();
-    void inputDigit(int digit);
-    void inputDecimalPoint();
-    void inputOperator(QChar op);
-    void inputParen();
-    void toggleSign();
-    void inputPercent();
-    void equals();
+    void ClearAll();
+    void InputDigit(int digit);
+    void InputDecimalPoint();
+    void InputOperator(QChar op);
+    void InputParen();
+    void ToggleSign();
+    void InputPercent();
+    void Equals();
 
 signals:
-    void expressionChanged(const QString& expr);
-    void displayChanged(const QString& display);
+    void DisplayChanged(const QString& display);
+    void ExpressionChanged(const QString& expr);
 
 private:
     enum class LastToken {
-        Start,
-        Number,
-        Operator,
-        OpenParen,
-        CloseParen,
-        Percent
+        kStart,
+        kNumber,
+        kOperator,
+        kOpenParen,
+        kCloseParen,
+        kPercent
     };
 
     QString expression_;
     QString display_ = "0";
-    LastToken last_ = LastToken::Start;
+    LastToken last_ = LastToken::kStart;
 
-    int openParens_ = 0;
-    int closeParens_ = 0;
+    int open_parens_ = 0;
+    int close_parens_ = 0;
+    int current_number_start_ = -1;
 
-    int currentNumberStart_ = -1;
+    QString CurrentNumber() const;
+    int CurrentDigitsCount() const;
+    bool CurrentHasDecimalPoint() const;
 
-    QString currentNumber() const;
-    int currentDigitsCount() const;
-    bool currentHasDecimalPoint() const;
+    void StartNewNumberIfNeeded();
+    void SetDisplayFromCurrentOrZero();
+    void EmitAll();
 
-    void startNewNumberIfNeeded();
-    void setDisplayFromCurrentOrZero();
-    void emitAll();
+    void ReplaceCurrentNumber(const QString& new_number);
+    void AppendToken(const QString& token, LastToken new_last);
+    void AppendChar(QChar c, LastToken new_last);
+    void TrimTrailingSpaces();
+    QString TruncateNumber(const QString& number) const;
 
-    void replaceCurrentNumber(const QString& newNumber);
-    void appendToken(const QString& token, LastToken newLast);
-    void appendChar(QChar c, LastToken newLast);
-    void trimTrailingSpaces();
-    QString truncateNumber(const QString& number) const;
-
-    bool canCloseParen() const;
-    bool shouldOpenParen() const;
-    bool tryEvaluate(QString* outResult, QString* outError = nullptr);
+    bool CanCloseParen() const;
+    bool ShouldOpenParen() const;
+    bool TryEvaluate(QString* out_result, QString* out_error = nullptr);
 };
-

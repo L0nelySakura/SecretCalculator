@@ -8,105 +8,134 @@
 #include <QPushButton>
 #include <QTimer>
 #include <QStackedWidget>
+#include <QVBoxLayout>
+
+MainWindow::~MainWindow() = default;
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
+    , ui_(std::make_unique<Ui::MainWindow>())
+    , model_(std::make_unique<CalculatorModel>())
+    , equal_long_press_timer_(std::make_unique<QTimer>())
+    , secret_code_timer_(std::make_unique<QTimer>())
+    , secret_menu_(std::make_unique<SecretMenu>())
 {
-    ui->setupUi(this);
+    ui_->setupUi(this);
 
-    stackedWidget_ = new QStackedWidget(this);
+    QWidget* calculator_page = new QWidget(this);
+    QVBoxLayout* main_layout = new QVBoxLayout(calculator_page);
 
-    QWidget* calculatorPage = ui->centralwidget;
-    stackedWidget_->addWidget(calculatorPage);
+    QWidget* calculator_ui = ui_->centralwidget;
+    calculator_ui->setParent(calculator_page);
+    main_layout->addWidget(calculator_ui);
+    main_layout->setContentsMargins(0, 0, 0, 0);
 
-    secretMenu_ = new SecretMenu(this);
-    connect(secretMenu_, &SecretMenu::backClicked, this, &MainWindow::closeSecretMenu);
-    stackedWidget_->addWidget(secretMenu_);
+    stacked_widget_ = new QStackedWidget(this);
+    stacked_widget_->addWidget(calculator_page);
 
-    setCentralWidget(stackedWidget_);
+    secret_menu_->setParent(this);
 
-    stackedWidget_->setCurrentIndex(0);
+    connect(secret_menu_.get(), &SecretMenu::BackClicked,
+            this, &MainWindow::CloseSecretMenu);
 
-    model_ = new CalculatorModel(this);
+    stacked_widget_->addWidget(secret_menu_.get());
 
+    setCentralWidget(stacked_widget_);
+    stacked_widget_->setCurrentIndex(0);
 
-    connect(model_, &CalculatorModel::displayChanged, this, [this](const QString& text) {
-        ui->lbl_display->setText(formatWithSpaces(text, 15));
+    model_->setParent(this);
+
+    connect(model_.get(), &CalculatorModel::DisplayChanged, this,
+            [this](const QString& text) {
+                ui_->lbl_display->setText(FormatWithSpaces(text, 15));
+            });
+
+    connect(model_.get(), &CalculatorModel::ExpressionChanged, this,
+            [this](const QString& text) {
+                ui_->lbl_expression->setText(FormatWithSpaces(text, 37));
+            });
+
+    equal_long_press_timer_->setSingleShot(true);
+    equal_long_press_timer_->setInterval(4000);
+
+    secret_code_timer_->setSingleShot(true);
+    secret_code_timer_->setInterval(5000);
+
+    connect(equal_long_press_timer_.get(), &QTimer::timeout, this, [this] {
+        secret_armed_ = true;
+        secret_code_buffer_.clear();
+        secret_code_timer_->start();
     });
 
-    connect(model_, &CalculatorModel::expressionChanged, this, [this](const QString& text) {
-        ui->lbl_expression->setText(formatWithSpaces(text, 37));
+    connect(secret_code_timer_.get(), &QTimer::timeout, this, [this] {
+        secret_armed_ = false;
+        secret_code_buffer_.clear();
     });
 
-    equalLongPressTimer_ = new QTimer(this);
-    equalLongPressTimer_->setSingleShot(true);
-    equalLongPressTimer_->setInterval(4000);
+    QPushButton* digit_buttons[] = {
+        ui_->btn_digit_0, ui_->btn_digit_1, ui_->btn_digit_2,
+        ui_->btn_digit_3, ui_->btn_digit_4, ui_->btn_digit_5,
+        ui_->btn_digit_6, ui_->btn_digit_7, ui_->btn_digit_8,
+        ui_->btn_digit_9
+    };
 
-    secretCodeTimer_ = new QTimer(this);
-    secretCodeTimer_->setSingleShot(true);
-    secretCodeTimer_->setInterval(5000);
+    for (int i = 0; i < 10; ++i) {
+        connect(digit_buttons[i], &QPushButton::clicked,
+                this, [this, i] { HandleDigit(i); });
+    }
 
-    connect(equalLongPressTimer_, &QTimer::timeout, this, [this] {
-        secretArmed_ = true;
-        secretCodeBuffer_.clear();
-        secretCodeTimer_->start();
+    connect(ui_->btn_decimal, &QPushButton::clicked,
+            model_.get(), &CalculatorModel::InputDecimalPoint);
+    connect(ui_->btn_paren, &QPushButton::clicked,
+            model_.get(), &CalculatorModel::InputParen);
+    connect(ui_->btn_sign, &QPushButton::clicked,
+            model_.get(), &CalculatorModel::ToggleSign);
+    connect(ui_->btn_percent, &QPushButton::clicked,
+            model_.get(), &CalculatorModel::InputPercent);
+
+    struct OperatorButton {
+        QPushButton* button;
+        char operation;
+    };
+
+    OperatorButton operators[] = {
+        {ui_->btn_op_plus, '+'},
+        {ui_->btn_op_minus, '-'},
+        {ui_->btn_op_mult, '*'},
+        {ui_->btn_op_division, '/'}
+    };
+
+    for (const auto& op : operators) {
+        connect(op.button, &QPushButton::clicked,
+                this, [this, op] { model_->InputOperator(op.operation); });
+    }
+
+    connect(ui_->btn_clear, &QPushButton::clicked,
+            model_.get(), &CalculatorModel::ClearAll);
+
+    connect(ui_->btn_equals, &QPushButton::pressed, this, [this] {
+        equal_long_press_timer_->start();
     });
 
-    connect(secretCodeTimer_, &QTimer::timeout, this, [this] {
-        secretArmed_ = false;
-        secretCodeBuffer_.clear();
-    });
-
-    // Цифры
-    connect(ui->btn_digit_0, &QPushButton::clicked, this, [this]{ handleDigit(0); });
-    connect(ui->btn_digit_1, &QPushButton::clicked, this, [this]{ handleDigit(1); });
-    connect(ui->btn_digit_2, &QPushButton::clicked, this, [this]{ handleDigit(2); });
-    connect(ui->btn_digit_3, &QPushButton::clicked, this, [this]{ handleDigit(3); });
-    connect(ui->btn_digit_4, &QPushButton::clicked, this, [this]{ handleDigit(4); });
-    connect(ui->btn_digit_5, &QPushButton::clicked, this, [this]{ handleDigit(5); });
-    connect(ui->btn_digit_6, &QPushButton::clicked, this, [this]{ handleDigit(6); });
-    connect(ui->btn_digit_7, &QPushButton::clicked, this, [this]{ handleDigit(7); });
-    connect(ui->btn_digit_8, &QPushButton::clicked, this, [this]{ handleDigit(8); });
-    connect(ui->btn_digit_9, &QPushButton::clicked, this, [this]{ handleDigit(9); });
-
-    connect(ui->btn_decimal, &QPushButton::clicked, model_, &CalculatorModel::inputDecimalPoint);
-    connect(ui->btn_paren, &QPushButton::clicked, model_, &CalculatorModel::inputParen);
-    connect(ui->btn_sign, &QPushButton::clicked, model_, &CalculatorModel::toggleSign);
-    connect(ui->btn_percent, &QPushButton::clicked, model_, &CalculatorModel::inputPercent);
-
-    connect(ui->btn_op_plus, &QPushButton::clicked, this, [this]{ model_->inputOperator('+'); });
-    connect(ui->btn_op_minus, &QPushButton::clicked, this, [this]{ model_->inputOperator('-'); });
-    connect(ui->btn_op_mult, &QPushButton::clicked, this, [this]{ model_->inputOperator('*'); });
-    connect(ui->btn_op_division, &QPushButton::clicked, this, [this]{ model_->inputOperator('/'); });
-
-    connect(ui->btn_clear, &QPushButton::clicked, model_, &CalculatorModel::clearAll);
-
-    connect(ui->btn_equals, &QPushButton::pressed, this, [this] {
-        equalLongPressTimer_->start();
-    });
-    connect(ui->btn_equals, &QPushButton::released, this, [this] {
-        if (equalLongPressTimer_->isActive()) {
-            equalLongPressTimer_->stop();
-            model_->equals();
+    connect(ui_->btn_equals, &QPushButton::released, this, [this] {
+        if (equal_long_press_timer_->isActive()) {
+            equal_long_press_timer_->stop();
+            model_->Equals();
         }
     });
 }
 
-MainWindow::~MainWindow()
-{
-    delete ui;
-}
-QString MainWindow::formatWithSpaces(const QString& text, int groupSize) {
-    if (groupSize <= 0 || text.isEmpty()) return text;
+QString MainWindow::FormatWithSpaces(const QString& text, int group_size) {
+    if (group_size <= 0 || text.isEmpty()) return text;
 
     QString result;
-    int len = text.length();
+    const int len = text.length();
     int count = 0;
-    for (int i = 0; i < len; i++) {
+
+    for (int i = 0; i < len; ++i) {
         result.append(text[i]);
-        count++;
-        if (count % groupSize == 0 && i != len - 1) {
+        ++count;
+        if (count % group_size == 0 && i != len - 1) {
             result.append(' ');
         }
     }
@@ -114,38 +143,34 @@ QString MainWindow::formatWithSpaces(const QString& text, int groupSize) {
     return result;
 }
 
-void MainWindow::handleDigit(int digit)
-{
-    if (secretArmed_) {
+void MainWindow::HandleDigit(int digit) {
+    if (secret_armed_) {
         const QString pattern = QStringLiteral("123");
-        secretCodeBuffer_.append(QChar('0' + digit));
+        secret_code_buffer_.append(QChar('0' + digit));
 
-        if (!pattern.startsWith(secretCodeBuffer_)) {
-            secretCodeBuffer_.clear();
+        if (!pattern.startsWith(secret_code_buffer_)) {
+            secret_code_buffer_.clear();
         }
 
-        if (secretCodeBuffer_ == pattern) {
-            secretCodeTimer_->stop();
-            secretArmed_ = false;
-            secretCodeBuffer_.clear();
-            openSecretMenu();
+        if (secret_code_buffer_ == pattern) {
+            secret_code_timer_->stop();
+            secret_armed_ = false;
+            secret_code_buffer_.clear();
+            OpenSecretMenu();
         }
     }
 
-    model_->inputDigit(digit);
+    model_->InputDigit(digit);
 }
 
-void MainWindow::openSecretMenu()
-{
-    if (stackedWidget_) {
-        stackedWidget_->setCurrentIndex(1);
+void MainWindow::OpenSecretMenu() {
+    if (stacked_widget_) {
+        stacked_widget_->setCurrentIndex(1);
     }
 }
 
-void MainWindow::closeSecretMenu()
-{
-    if (stackedWidget_) {
-        stackedWidget_->setCurrentIndex(0);
+void MainWindow::CloseSecretMenu() {
+    if (stacked_widget_) {
+        stacked_widget_->setCurrentIndex(0);
     }
 }
-

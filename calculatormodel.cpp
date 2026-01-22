@@ -1,177 +1,374 @@
 #include "calculatormodel.h"
-
 #include "bignumber.h"
 
-#include <QVector>
+#include <vector>
 #include <stdexcept>
 
 namespace {
+
 constexpr int kMaxDigitsInNumber = 25;
 
-struct Tok {
-    enum Kind { Number, Op, LParen, RParen, Percent } kind;
+struct Token {
+    enum Kind { kNumber, kOp, kLParen, kRParen, kPercent } kind;
     QString text;
 };
 
-static int precedence(const Tok& t) {
-    if (t.kind == Tok::Percent) return 2;
-    if (t.kind == Tok::Op && (t.text == "*" || t.text == "/")) return 2;
-    if (t.kind == Tok::Op && (t.text == "+" || t.text == "-")) return 1;
+int Precedence(const Token& t) {
+    if (t.kind == Token::kPercent) return 2;
+    if (t.kind == Token::kOp && (t.text == "*" || t.text == "/")) return 2;
+    if (t.kind == Token::kOp && (t.text == "+" || t.text == "-")) return 1;
     return 0;
 }
 
-static bool isLeftAssoc(const Tok& t) {
-    return t.kind != Tok::Percent;
+bool IsLeftAssoc(const Token& t) {
+    return t.kind != Token::kPercent;
 }
 
-static bool isOperatorTok(const Tok& t) {
-    return t.kind == Tok::Op || t.kind == Tok::Percent;
+bool IsOperatorToken(const Token& t) {
+    return t.kind == Token::kOp || t.kind == Token::kPercent;
 }
 
-static bool isDigitQChar(QChar c) { return c >= '0' && c <= '9'; }
+bool IsDigitQChar(QChar c) {
+    return c >= '0' && c <= '9';
+}
+
+std::vector<Token> Tokenize(const QString& expr) {
+    std::vector<Token> tokens;
+    Token::Kind prev_kind = Token::kOp;
+    int i = 0;
+
+    while (i < expr.size()) {
+        const QChar c = expr[i];
+        if (c.isSpace() || c == '=') {
+            ++i;
+            continue;
+        }
+
+        if (c == '(') {
+            tokens.push_back({Token::kLParen, "("});
+            prev_kind = Token::kLParen;
+            ++i;
+            continue;
+        }
+
+        if (c == ')') {
+            tokens.push_back({Token::kRParen, ")"});
+            prev_kind = Token::kRParen;
+            ++i;
+            continue;
+        }
+
+        if (c == '%') {
+            tokens.push_back({Token::kPercent, "%"});
+            prev_kind = Token::kPercent;
+            ++i;
+            continue;
+        }
+
+        if (c == '+' || c == '-' || c == '*' || c == '/') {
+            const bool may_be_unary_minus =
+                (c == '-') &&
+                (prev_kind == Token::kOp || prev_kind == Token::kLParen ||
+                 prev_kind == Token::kPercent);
+
+            if (!may_be_unary_minus) {
+                tokens.push_back({Token::kOp, QString(c)});
+                prev_kind = Token::kOp;
+                ++i;
+                continue;
+            }
+        }
+
+        if (IsDigitQChar(c) || c == '.' || c == '-') {
+            int start = i;
+            bool seen_dot = false;
+            bool seen_digit = false;
+
+            if (expr[i] == '-') {
+                ++i;
+            }
+
+            while (i < expr.size()) {
+                const QChar ch = expr[i];
+                if (IsDigitQChar(ch)) {
+                    seen_digit = true;
+                    ++i;
+                    continue;
+                }
+                if (ch == '.') {
+                    if (seen_dot) break;
+                    seen_dot = true;
+                    ++i;
+                    continue;
+                }
+                break;
+            }
+
+            const QString num = expr.mid(start, i - start);
+            if (!seen_digit) {
+                throw std::runtime_error("bad number");
+            }
+
+            tokens.push_back({Token::kNumber, num});
+            prev_kind = Token::kNumber;
+            continue;
+        }
+
+        throw std::runtime_error("unknown token");
+    }
+
+    return tokens;
+}
+
+std::vector<Token> ToRpn(const std::vector<Token>& tokens) {
+    std::vector<Token> out;
+    std::vector<Token> stack;
+
+    for (const Token& t : tokens) {
+        if (t.kind == Token::kNumber) {
+            out.push_back(t);
+            continue;
+        }
+
+        if (t.kind == Token::kLParen) {
+            stack.push_back(t);
+            continue;
+        }
+
+        if (t.kind == Token::kRParen) {
+            while (!stack.empty() && stack.back().kind != Token::kLParen) {
+                out.push_back(stack.back());
+                stack.pop_back();
+            }
+
+            if (stack.empty() || stack.back().kind != Token::kLParen) {
+                throw std::runtime_error("mismatched parens");
+            }
+
+            stack.pop_back();
+            continue;
+        }
+
+        if (IsOperatorToken(t)) {
+            while (!stack.empty() && IsOperatorToken(stack.back())) {
+                const Token& top = stack.back();
+                const int p1 = Precedence(t);
+                const int p2 = Precedence(top);
+
+                if ((IsLeftAssoc(t) && p1 <= p2) ||
+                    (!IsLeftAssoc(t) && p1 < p2)) {
+                    out.push_back(top);
+                    stack.pop_back();
+                } else {
+                    break;
+                }
+            }
+
+            stack.push_back(t);
+            continue;
+        }
+
+        throw std::runtime_error("bad token");
+    }
+
+    while (!stack.empty()) {
+        if (stack.back().kind == Token::kLParen ||
+            stack.back().kind == Token::kRParen) {
+            throw std::runtime_error("mismatched parens");
+        }
+
+        out.push_back(stack.back());
+        stack.pop_back();
+    }
+
+    return out;
+}
+
+QString EvalRpn(const std::vector<Token>& rpn) {
+    std::vector<BigNumber> stack;
+
+    for (const Token& t : rpn) {
+        if (t.kind == Token::kNumber) {
+            stack.push_back(BigNumber(t.text));
+            continue;
+        }
+
+        if (t.kind == Token::kPercent) {
+            if (stack.empty()) {
+                throw std::runtime_error("percent without operand");
+            }
+
+            BigNumber x = stack.back();
+            stack.pop_back();
+            stack.push_back(x.Percent());
+            continue;
+        }
+
+        if (t.kind == Token::kOp) {
+            if (stack.size() < 2) {
+                throw std::runtime_error("op without operands");
+            }
+
+            BigNumber b = stack.back();
+            stack.pop_back();
+            BigNumber a = stack.back();
+            stack.pop_back();
+
+            if (t.text == "+") {
+                stack.push_back(a + b);
+            } else if (t.text == "-") {
+                stack.push_back(a - b);
+            } else if (t.text == "*") {
+                stack.push_back(a * b);
+            } else if (t.text == "/") {
+                stack.push_back(a / b);
+            } else {
+                throw std::runtime_error("unknown op");
+            }
+
+            continue;
+        }
+
+        throw std::runtime_error("bad rpn");
+    }
+
+    if (stack.size() != 1) {
+        throw std::runtime_error("bad expression");
+    }
+
+    return stack.back().ToQString();
+}
+
 } // namespace
 
-CalculatorModel::CalculatorModel(QObject* parent) : QObject(parent)
-{
-    emitAll();
+// Реализация методов CalculatorModel
+CalculatorModel::CalculatorModel(QObject* parent) : QObject(parent) {
+    EmitAll();
 }
 
-void CalculatorModel::emitAll()
-{
-    emit expressionChanged(expression_);
-    emit displayChanged(display_);
+void CalculatorModel::EmitAll() {
+    emit ExpressionChanged(expression_);
+    emit DisplayChanged(display_);
 }
 
-void CalculatorModel::clearAll()
-{
+void CalculatorModel::ClearAll() {
     expression_.clear();
     display_ = "0";
-    last_ = LastToken::Start;
-    openParens_ = 0;
-    closeParens_ = 0;
-    currentNumberStart_ = -1;
-    emitAll();
+    last_ = LastToken::kStart;
+    open_parens_ = 0;
+    close_parens_ = 0;
+    current_number_start_ = -1;
+    EmitAll();
 }
 
-void CalculatorModel::trimTrailingSpaces()
-{
+void CalculatorModel::TrimTrailingSpaces() {
     while (!expression_.isEmpty() && expression_.back().isSpace())
         expression_.chop(1);
 }
 
-QString CalculatorModel::truncateNumber(const QString& number) const
-{
+QString CalculatorModel::TruncateNumber(const QString& number) const {
     if (number.isEmpty() || number == "Error")
         return number;
 
-    const int maxDigits = 25;
+    const int max_digits = 25;
 
     bool negative = number.startsWith('-');
     QString n = negative ? number.mid(1) : number;
 
-    int dotPos = n.indexOf('.');
-    QString intPart = (dotPos == -1) ? n : n.left(dotPos);
-    QString fracPart = (dotPos == -1) ? QString() : n.mid(dotPos + 1);
+    int dot_pos = n.indexOf('.');
+    QString int_part = (dot_pos == -1) ? n : n.left(dot_pos);
+    QString frac_part = (dot_pos == -1) ? QString() : n.mid(dot_pos + 1);
 
-    int intDigits = 0;
-    for (QChar c : intPart) {
+    int int_digits = 0;
+    for (QChar c : int_part) {
         if (c.isDigit())
-            ++intDigits;
+            ++int_digits;
     }
 
-    if (intDigits > maxDigits) {
-        return QString(maxDigits, '9');
+    if (int_digits > max_digits) {
+        return QString(max_digits, '9');
     }
 
     QString result;
     if (negative)
         result.append('-');
 
-    int usedDigits = 0;
+    int used_digits = 0;
 
-    for (QChar c : intPart) {
+    for (QChar c : int_part) {
         if (c.isDigit()) {
-            if (usedDigits >= maxDigits)
+            if (used_digits >= max_digits)
                 break;
-            ++usedDigits;
+            ++used_digits;
         }
         result.append(c);
     }
-    if (!fracPart.isEmpty() && usedDigits < maxDigits) {
+    if (!frac_part.isEmpty() && used_digits < max_digits) {
         result.append('.');
-        for (QChar c : fracPart) {
+        for (QChar c : frac_part) {
             if (!c.isDigit())
                 continue;
-            if (usedDigits >= maxDigits)
+            if (used_digits >= max_digits)
                 break;
             result.append(c);
-            ++usedDigits;
+            ++used_digits;
         }
     }
 
     return result;
 }
 
-
-QString CalculatorModel::currentNumber() const
-{
-    if (last_ != LastToken::Number || currentNumberStart_ < 0)
+QString CalculatorModel::CurrentNumber() const {
+    if (last_ != LastToken::kNumber || current_number_start_ < 0)
         return QString();
-    return expression_.mid(currentNumberStart_);
+    return expression_.mid(current_number_start_);
 }
 
-int CalculatorModel::currentDigitsCount() const
-{
-    const QString n = currentNumber();
+int CalculatorModel::CurrentDigitsCount() const {
+    const QString n = CurrentNumber();
     int cnt = 0;
     for (QChar c : n) {
-        if (isDigitQChar(c))
+        if (IsDigitQChar(c))
             ++cnt;
     }
     return cnt;
 }
 
-bool CalculatorModel::currentHasDecimalPoint() const
-{
-    return currentNumber().contains('.');
+bool CalculatorModel::CurrentHasDecimalPoint() const {
+    return CurrentNumber().contains('.');
 }
 
-void CalculatorModel::appendToken(const QString& token, LastToken newLast)
-{
+void CalculatorModel::AppendToken(const QString& token, LastToken new_last) {
     expression_ += token;
-    last_ = newLast;
-    if (newLast != LastToken::Number)
-        currentNumberStart_ = -1;
+    last_ = new_last;
+    if (new_last != LastToken::kNumber)
+        current_number_start_ = -1;
 }
 
-void CalculatorModel::appendChar(QChar c, LastToken newLast)
-{
+void CalculatorModel::AppendChar(QChar c, LastToken new_last) {
     expression_ += c;
-    last_ = newLast;
-    if (newLast != LastToken::Number)
-        currentNumberStart_ = -1;
+    last_ = new_last;
+    if (new_last != LastToken::kNumber)
+        current_number_start_ = -1;
 }
 
-void CalculatorModel::replaceCurrentNumber(const QString& newNumber)
-{
-    if (last_ != LastToken::Number || currentNumberStart_ < 0)
+void CalculatorModel::ReplaceCurrentNumber(const QString& new_number) {
+    if (last_ != LastToken::kNumber || current_number_start_ < 0)
         return;
-    expression_ = expression_.left(currentNumberStart_) + newNumber;
+    expression_ = expression_.left(current_number_start_) + new_number;
 }
 
-void CalculatorModel::startNewNumberIfNeeded()
-{
-    if (last_ == LastToken::Number)
+void CalculatorModel::StartNewNumberIfNeeded() {
+    if (last_ == LastToken::kNumber)
         return;
-    trimTrailingSpaces();
-    currentNumberStart_ = expression_.size();
-    appendToken("0", LastToken::Number);
+    TrimTrailingSpaces();
+    current_number_start_ = expression_.size();
+    AppendToken("0", LastToken::kNumber);
 }
 
-void CalculatorModel::setDisplayFromCurrentOrZero()
-{
-    if (last_ == LastToken::Number) {
-        display_ = currentNumber();
+void CalculatorModel::SetDisplayFromCurrentOrZero() {
+    if (last_ == LastToken::kNumber) {
+        display_ = CurrentNumber();
         if (display_.isEmpty())
             display_ = "0";
         return;
@@ -179,369 +376,197 @@ void CalculatorModel::setDisplayFromCurrentOrZero()
     display_ = "0";
 }
 
-void CalculatorModel::inputDigit(int digit)
-{
+void CalculatorModel::InputDigit(int digit) {
     if (digit < 0 || digit > 9)
         return;
 
-    if (last_ != LastToken::Number) {
-        // После ')' или '%' блокируем ввод цифр (не начинаем новое число)
-        if (last_ == LastToken::CloseParen || last_ == LastToken::Percent) {
-            emitAll();
+    if (last_ != LastToken::kNumber) {
+        if (last_ == LastToken::kCloseParen || last_ == LastToken::kPercent) {
+            EmitAll();
             return;
         }
-        trimTrailingSpaces();
-        currentNumberStart_ = expression_.size();
-        appendToken(QString::number(digit), LastToken::Number);
-        display_ = currentNumber();
-        emitAll();
+        TrimTrailingSpaces();
+        current_number_start_ = expression_.size();
+        AppendToken(QString::number(digit), LastToken::kNumber);
+        display_ = CurrentNumber();
+        EmitAll();
         return;
     }
 
-    if (currentDigitsCount() >= kMaxDigitsInNumber) {
-        emitAll();
+    if (CurrentDigitsCount() >= kMaxDigitsInNumber) {
+        EmitAll();
         return;
     }
 
-    QString n = currentNumber();
+    QString n = CurrentNumber();
     if (n == "0") {
-        replaceCurrentNumber(QString::number(digit));
+        ReplaceCurrentNumber(QString::number(digit));
     } else if (n == "-0") {
-        replaceCurrentNumber(QString("-") + QString::number(digit));
+        ReplaceCurrentNumber(QString("-") + QString::number(digit));
     } else {
-        appendChar(QChar('0' + digit), LastToken::Number);
+        AppendChar(QChar('0' + digit), LastToken::kNumber);
     }
-    display_ = currentNumber();
-    emitAll();
+    display_ = CurrentNumber();
+    EmitAll();
 }
 
-void CalculatorModel::inputDecimalPoint()
-{
-    if (last_ != LastToken::Number) {
-        if (last_ == LastToken::CloseParen || last_ == LastToken::Percent) {
-            emitAll();
+void CalculatorModel::InputDecimalPoint() {
+    if (last_ != LastToken::kNumber) {
+        if (last_ == LastToken::kCloseParen || last_ == LastToken::kPercent) {
+            EmitAll();
             return;
         }
-        trimTrailingSpaces();
-        currentNumberStart_ = expression_.size();
-        appendToken("0.", LastToken::Number);
-        display_ = currentNumber();
-        emitAll();
+        TrimTrailingSpaces();
+        current_number_start_ = expression_.size();
+        AppendToken("0.", LastToken::kNumber);
+        display_ = CurrentNumber();
+        EmitAll();
         return;
     }
 
-    if (currentHasDecimalPoint()) {
-        emitAll();
+    if (CurrentHasDecimalPoint()) {
+        EmitAll();
         return;
     }
 
-    appendChar('.', LastToken::Number);
-    display_ = currentNumber();
-    emitAll();
+    AppendChar('.', LastToken::kNumber);
+    display_ = CurrentNumber();
+    EmitAll();
 }
 
-void CalculatorModel::inputOperator(QChar op)
-{
+void CalculatorModel::InputOperator(QChar op) {
     if (op != '+' && op != '-' && op != '*' && op != '/')
         return;
 
-    if (last_ == LastToken::Start || last_ == LastToken::OpenParen) {
-        emitAll();
+    if (last_ == LastToken::kStart || last_ == LastToken::kOpenParen) {
+        EmitAll();
         return;
     }
 
-    trimTrailingSpaces();
+    TrimTrailingSpaces();
 
-    if (last_ == LastToken::Operator) {
+    if (last_ == LastToken::kOperator) {
         if (!expression_.isEmpty())
             expression_.chop(1);
         expression_ += op;
-        emitAll();
+        EmitAll();
         return;
     }
 
     expression_ += op;
-    last_ = LastToken::Operator;
-    currentNumberStart_ = -1;
-    emitAll();
+    last_ = LastToken::kOperator;
+    current_number_start_ = -1;
+    EmitAll();
 }
 
-bool CalculatorModel::canCloseParen() const
-{
-    if (openParens_ <= closeParens_)
+bool CalculatorModel::CanCloseParen() const {
+    if (open_parens_ <= close_parens_)
         return false;
-    return (last_ == LastToken::Number || last_ == LastToken::CloseParen || last_ == LastToken::Percent);
+    return (last_ == LastToken::kNumber || last_ == LastToken::kCloseParen ||
+            last_ == LastToken::kPercent);
 }
 
-bool CalculatorModel::shouldOpenParen() const
-{
-    return (last_ == LastToken::Start || last_ == LastToken::Operator || last_ == LastToken::OpenParen);
+bool CalculatorModel::ShouldOpenParen() const {
+    return (last_ == LastToken::kStart || last_ == LastToken::kOperator ||
+            last_ == LastToken::kOpenParen);
 }
 
-void CalculatorModel::inputParen() {
-    trimTrailingSpaces();
+void CalculatorModel::InputParen() {
+    TrimTrailingSpaces();
 
-    bool openAllowed = shouldOpenParen();
+    bool open_allowed = ShouldOpenParen();
+    bool close_allowed = CanCloseParen();
 
-    bool closeAllowed = canCloseParen();
-
-    if (openAllowed) {
+    if (open_allowed) {
         expression_ += '(';
-        ++openParens_;
-        last_ = LastToken::OpenParen;
-        currentNumberStart_ = -1;
-        emitAll();
+        ++open_parens_;
+        last_ = LastToken::kOpenParen;
+        current_number_start_ = -1;
+        EmitAll();
         return;
     }
 
-    if (closeAllowed) {
+    if (close_allowed) {
         expression_ += ')';
-        ++closeParens_;
-        last_ = LastToken::CloseParen;
-        currentNumberStart_ = -1;
-        emitAll();
+        ++close_parens_;
+        last_ = LastToken::kCloseParen;
+        current_number_start_ = -1;
+        EmitAll();
         return;
     }
-    emitAll();
+
+    EmitAll();
 }
-void CalculatorModel::toggleSign()
-{
-    if (last_ != LastToken::Number) {
-        trimTrailingSpaces();
-        currentNumberStart_ = expression_.size();
-        appendToken("0", LastToken::Number);
+
+void CalculatorModel::ToggleSign() {
+    if (last_ != LastToken::kNumber) {
+        TrimTrailingSpaces();
+        current_number_start_ = expression_.size();
+        AppendToken("0", LastToken::kNumber);
     }
 
-    QString n = currentNumber();
+    QString n = CurrentNumber();
     if (n.startsWith('-')) {
         n.remove(0, 1);
     } else {
         n.prepend('-');
     }
-    replaceCurrentNumber(n);
-    display_ = currentNumber();
-    emitAll();
+    ReplaceCurrentNumber(n);
+    display_ = CurrentNumber();
+    EmitAll();
 }
 
-void CalculatorModel::inputPercent()
-{
-    if (last_ == LastToken::Number || last_ == LastToken::CloseParen) {
+void CalculatorModel::InputPercent() {
+    if (last_ == LastToken::kNumber || last_ == LastToken::kCloseParen) {
         expression_ += '%';
-        last_ = LastToken::Percent;
-        currentNumberStart_ = -1;
+        last_ = LastToken::kPercent;
+        current_number_start_ = -1;
     }
-    emitAll();
+    EmitAll();
 }
 
-void CalculatorModel::equals()
-{
+void CalculatorModel::Equals() {
     if (!expression_.isEmpty()) {
-        if (last_ == LastToken::Operator || last_ == LastToken::OpenParen) {
-            emitAll();
+        if (last_ == LastToken::kOperator || last_ == LastToken::kOpenParen) {
+            EmitAll();
             return;
         }
-        while (openParens_ > closeParens_) {
+        while (open_parens_ > close_parens_) {
             expression_ += ')';
-            ++closeParens_;
-            last_ = LastToken::CloseParen;
+            ++close_parens_;
+            last_ = LastToken::kCloseParen;
         }
     }
 
     QString result;
     QString err;
-    if (!tryEvaluate(&result, &err)) {
+    if (!TryEvaluate(&result, &err)) {
         display_ = "Error";
-        emitAll();
+        EmitAll();
         return;
     }
 
-    result = truncateNumber(result);
-    const QString oldExpr = expression_;
+    result = TruncateNumber(result);
+    const QString old_expr = expression_;
     display_ = result;
-    expression_ = oldExpr + "=";
-    emit expressionChanged(expression_);
-    emit displayChanged(display_);
+    expression_ = old_expr + "=";
+    emit ExpressionChanged(expression_);
+    emit DisplayChanged(display_);
     expression_ = result;
-    last_ = LastToken::Number;
-    currentNumberStart_ = 0;
-    openParens_ = closeParens_ = 0;
+    last_ = LastToken::kNumber;
+    current_number_start_ = 0;
+    open_parens_ = close_parens_ = 0;
 }
 
-static QVector<Tok> tokenize(const QString& expr)
-{
-    QVector<Tok> toks;
-    Tok::Kind prevKind = Tok::Op;
-    int i = 0;
-    while (i < expr.size()) {
-        const QChar c = expr[i];
-        if (c.isSpace() || c == '=') {
-            ++i;
-            continue;
-        }
-        if (c == '(') {
-            toks.push_back({Tok::LParen, "("});
-            prevKind = Tok::LParen;
-            ++i;
-            continue;
-        }
-        if (c == ')') {
-            toks.push_back({Tok::RParen, ")"});
-            prevKind = Tok::RParen;
-            ++i;
-            continue;
-        }
-        if (c == '%') {
-            toks.push_back({Tok::Percent, "%"});
-            prevKind = Tok::Percent;
-            ++i;
-            continue;
-        }
-        if (c == '+' || c == '-' || c == '*' || c == '/') {
-            const bool mayBeUnaryMinus =
-                (c == '-') &&
-                (prevKind == Tok::Op || prevKind == Tok::LParen || prevKind == Tok::Percent);
-
-            if (!mayBeUnaryMinus) {
-                toks.push_back({Tok::Op, QString(c)});
-                prevKind = Tok::Op;
-                ++i;
-                continue;
-            }
-        }
-        if (isDigitQChar(c) || c == '.' || c == '-') {
-            int start = i;
-            bool seenDot = false;
-            bool seenDigit = false;
-            if (expr[i] == '-') {
-                ++i;
-            }
-            while (i < expr.size()) {
-                const QChar ch = expr[i];
-                if (isDigitQChar(ch)) {
-                    seenDigit = true;
-                    ++i;
-                    continue;
-                }
-                if (ch == '.') {
-                    if (seenDot)
-                        break;
-                    seenDot = true;
-                    ++i;
-                    continue;
-                }
-                break;
-            }
-            const QString num = expr.mid(start, i - start);
-            if (!seenDigit)
-                throw std::runtime_error("bad number");
-            toks.push_back({Tok::Number, num});
-            prevKind = Tok::Number;
-            continue;
-        }
-
-        throw std::runtime_error("unknown token");
-    }
-    return toks;
-}
-
-static QVector<Tok> toRpn(const QVector<Tok>& toks)
-{
-    QVector<Tok> out;
-    QVector<Tok> st;
-
-    for (const Tok& t : toks) {
-        if (t.kind == Tok::Number) {
-            out.push_back(t);
-            continue;
-        }
-        if (t.kind == Tok::LParen) {
-            st.push_back(t);
-            continue;
-        }
-        if (t.kind == Tok::RParen) {
-            while (!st.isEmpty() && st.back().kind != Tok::LParen) {
-                out.push_back(st.back());
-                st.pop_back();
-            }
-            if (st.isEmpty() || st.back().kind != Tok::LParen)
-                throw std::runtime_error("mismatched parens");
-            st.pop_back();
-            continue;
-        }
-
-        if (isOperatorTok(t)) {
-            while (!st.isEmpty() && isOperatorTok(st.back())) {
-                const Tok& top = st.back();
-                const int p1 = precedence(t);
-                const int p2 = precedence(top);
-                if ((isLeftAssoc(t) && p1 <= p2) || (!isLeftAssoc(t) && p1 < p2)) {
-                    out.push_back(top);
-                    st.pop_back();
-                } else {
-                    break;
-                }
-            }
-            st.push_back(t);
-            continue;
-        }
-        throw std::runtime_error("bad token");
-    }
-
-    while (!st.isEmpty()) {
-        if (st.back().kind == Tok::LParen || st.back().kind == Tok::RParen)
-            throw std::runtime_error("mismatched parens");
-        out.push_back(st.back());
-        st.pop_back();
-    }
-    return out;
-}
-
-static QString evalRpn(const QVector<Tok>& rpn)
-{
-    QVector<BigNumber> st;
-    for (const Tok& t : rpn) {
-        if (t.kind == Tok::Number) {
-            st.push_back(BigNumber(t.text));
-            continue;
-        }
-        if (t.kind == Tok::Percent) {
-            if (st.isEmpty())
-                throw std::runtime_error("percent without operand");
-            BigNumber x = st.back();
-            st.pop_back();
-            st.push_back(x.percent());
-            continue;
-        }
-        if (t.kind == Tok::Op) {
-            if (st.size() < 2)
-                throw std::runtime_error("op without operands");
-            BigNumber b = st.back(); st.pop_back();
-            BigNumber a = st.back(); st.pop_back();
-            if (t.text == "+") st.push_back(a + b);
-            else if (t.text == "-") st.push_back(a - b);
-            else if (t.text == "*") st.push_back(a * b);
-            else if (t.text == "/") st.push_back(a / b);
-            else throw std::runtime_error("unknown op");
-            continue;
-        }
-        throw std::runtime_error("bad rpn");
-    }
-    if (st.size() != 1)
-        throw std::runtime_error("bad expression");
-    return st.back().toQString();
-}
-
-bool CalculatorModel::tryEvaluate(QString* outResult, QString* outError)
-{
+bool CalculatorModel::TryEvaluate(QString* out_result, QString* out_error) {
     try {
-        const QVector<Tok> toks = tokenize(expression_);
-        const QVector<Tok> rpn = toRpn(toks);
-        *outResult = evalRpn(rpn);
+        const std::vector<Token> tokens = Tokenize(expression_);
+        const std::vector<Token> rpn = ToRpn(tokens);
+        *out_result = EvalRpn(rpn);
         return true;
     } catch (const std::exception& e) {
-        if (outError)
-            *outError = QString::fromLatin1(e.what());
+        if (out_error)
+            *out_error = QString::fromLatin1(e.what());
         return false;
     }
 }
-
