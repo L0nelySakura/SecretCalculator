@@ -9,9 +9,18 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>411</width>
-    <height>691</height>
+    <width>529</width>
+    <height>715</height>
    </rect>
+  </property>
+  <property name="focusPolicy">
+   <enum>Qt::FocusPolicy::NoFocus</enum>
+  </property>
+  <property name="contextMenuPolicy">
+   <enum>Qt::ContextMenuPolicy::DefaultContextMenu</enum>
+  </property>
+  <property name="acceptDrops">
+   <bool>true</bool>
   </property>
   <property name="windowTitle">
    <string>Calculator</string>
@@ -115,6 +124,12 @@ QPushButton#btn_clear:pressed {
 }</string>
   </property>
   <widget class="QWidget" name="centralwidget">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
+   <property name="layoutDirection">
+    <enum>Qt::LayoutDirection::LeftToRight</enum>
+   </property>
    <property name="autoFillBackground">
     <bool>false</bool>
    </property>
@@ -124,10 +139,10 @@ QPushButton#btn_clear:pressed {
    <widget class="QLabel" name="lbl_display">
     <property name="geometry">
      <rect>
-      <x>0</x>
-      <y>-50</y>
+      <x>10</x>
+      <y>90</y>
       <width>411</width>
-      <height>271</height>
+      <height>131</height>
      </rect>
     </property>
     <property name="layoutDirection">
@@ -158,8 +173,8 @@ QPushButton#btn_clear:pressed {
    <widget class="QLabel" name="lbl_expression">
     <property name="geometry">
      <rect>
-      <x>0</x>
-      <y>0</y>
+      <x>10</x>
+      <y>10</y>
       <width>411</width>
       <height>71</height>
      </rect>
@@ -171,38 +186,30 @@ QPushButton#btn_clear:pressed {
    <widget class="QWidget" name="gridLayoutWidget">
     <property name="geometry">
      <rect>
-      <x>0</x>
-      <y>220</y>
+      <x>10</x>
+      <y>230</y>
       <width>411</width>
       <height>471</height>
      </rect>
     </property>
     <layout class="QGridLayout" name="gridLayout">
-     <item row="2" column="0">
-      <widget class="QPushButton" name="btn_digit_4">
+     <item row="0" column="1">
+      <widget class="QPushButton" name="btn_sign">
        <property name="text">
-        <string>4</string>
+        <string>+/-</string>
        </property>
       </widget>
      </item>
-     <item row="4" column="0">
-      <widget class="QPushButton" name="btn_clear">
-       <property name="text">
-        <string>C</string>
+     <item row="3" column="2">
+      <widget class="QPushButton" name="btn_digit_3">
+       <property name="styleSheet">
+        <string notr="true">QPushButton:pressed {
+        background-color: #F7E425;
+        color: #024873;
+    }</string>
        </property>
-      </widget>
-     </item>
-     <item row="3" column="1">
-      <widget class="QPushButton" name="btn_digit_2">
        <property name="text">
-        <string>2</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="3">
-      <widget class="QPushButton" name="btn_op_division">
-       <property name="text">
-        <string>/</string>
+        <string>3</string>
        </property>
       </widget>
      </item>
@@ -213,10 +220,52 @@ QPushButton#btn_clear:pressed {
        </property>
       </widget>
      </item>
+     <item row="1" column="3">
+      <widget class="QPushButton" name="btn_op_mult">
+       <property name="text">
+        <string>*</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="3">
+      <widget class="QPushButton" name="btn_equals">
+       <property name="text">
+        <string>=</string>
+       </property>
+      </widget>
+     </item>
      <item row="1" column="1">
       <widget class="QPushButton" name="btn_digit_8">
        <property name="text">
         <string>8</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QPushButton" name="btn_digit_1">
+       <property name="text">
+        <string>1</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="2">
+      <widget class="QPushButton" name="btn_decimal">
+       <property name="text">
+        <string>.</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="2">
+      <widget class="QPushButton" name="btn_digit_9">
+       <property name="text">
+        <string>9</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="3">
+      <widget class="QPushButton" name="btn_op_division">
+       <property name="text">
+        <string>/</string>
        </property>
       </widget>
      </item>
@@ -234,48 +283,6 @@ QPushButton#btn_clear:pressed {
        </property>
       </widget>
      </item>
-     <item row="2" column="1">
-      <widget class="QPushButton" name="btn_digit_5">
-       <property name="text">
-        <string>5</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="1">
-      <widget class="QPushButton" name="btn_sign">
-       <property name="text">
-        <string>+/-</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0">
-      <widget class="QPushButton" name="btn_digit_1">
-       <property name="text">
-        <string>1</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="2">
-      <widget class="QPushButton" name="btn_percent">
-       <property name="text">
-        <string>%</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="2">
-      <widget class="QPushButton" name="btn_digit_9">
-       <property name="text">
-        <string>9</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="3">
-      <widget class="QPushButton" name="btn_op_mult">
-       <property name="text">
-        <string>*</string>
-       </property>
-      </widget>
-     </item>
      <item row="2" column="2">
       <widget class="QPushButton" name="btn_digit_6">
        <property name="text">
@@ -290,16 +297,17 @@ QPushButton#btn_clear:pressed {
        </property>
       </widget>
      </item>
-     <item row="3" column="2">
-      <widget class="QPushButton" name="btn_digit_3">
-       <property name="styleSheet">
-        <string notr="true">QPushButton:pressed {
-        background-color: #F7E425;
-        color: #024873;
-    }</string>
-       </property>
+     <item row="2" column="0">
+      <widget class="QPushButton" name="btn_digit_4">
        <property name="text">
-        <string>3</string>
+        <string>4</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QPushButton" name="btn_digit_2">
+       <property name="text">
+        <string>2</string>
        </property>
       </widget>
      </item>
@@ -310,17 +318,24 @@ QPushButton#btn_clear:pressed {
        </property>
       </widget>
      </item>
-     <item row="4" column="2">
-      <widget class="QPushButton" name="btn_decimal">
+     <item row="4" column="0">
+      <widget class="QPushButton" name="btn_clear">
        <property name="text">
-        <string>.</string>
+        <string>C</string>
        </property>
       </widget>
      </item>
-     <item row="4" column="3">
-      <widget class="QPushButton" name="btn_equals">
+     <item row="2" column="1">
+      <widget class="QPushButton" name="btn_digit_5">
        <property name="text">
-        <string>=</string>
+        <string>5</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="2">
+      <widget class="QPushButton" name="btn_percent">
+       <property name="text">
+        <string>%</string>
        </property>
       </widget>
      </item>

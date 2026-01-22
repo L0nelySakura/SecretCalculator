@@ -105,15 +105,31 @@ BigNumber BigNumber::parse(const std::string& input)
             fracPart.push_back(c);
     }
 
+    if (intPart.empty() && fracPart.empty())
+        throw std::invalid_argument("BigNumber: no digits");
+
     if (intPart.empty())
         intPart = "0";
-    if (!isAllDigits(intPart) || !isAllDigits(fracPart))
-        throw std::invalid_argument("BigNumber: invalid digits");
+
+    // Убираем ведущие нули из целой части
+    stripLeadingZeros(intPart);
+    if (intPart.empty())
+        intPart = "0";
+
+    // Убираем лишние нули в конце дробной части
+    while (!fracPart.empty() && fracPart.back() == '0') {
+        fracPart.pop_back();
+    }
 
     std::string digits = intPart + fracPart;
     int scale = static_cast<int>(fracPart.size());
+
+    // Если digits получился "0" и scale > 0, оставляем как есть
+    // normalize() позаботится об этом
+
     return BigNumber::fromParts(std::move(digits), scale, neg);
 }
+
 
 void BigNumber::stripLeadingZeros(std::string& s)
 {
@@ -123,30 +139,40 @@ void BigNumber::stripLeadingZeros(std::string& s)
     if (i > 0)
         s.erase(0, i);
 }
-
 void BigNumber::normalize()
 {
     if (digits_.empty())
         digits_ = "0";
 
-    // Убираем лидирующие нули (в целом числе без учета scale это безопасно)
+    // Убираем лидирующие нули (только до точки)
     stripLeadingZeros(digits_);
 
-    // Убираем лишние нули в дробной части (с конца digits_) и уменьшаем scale
+    // Если после удаления ведущих нулей digits_ стал пустым
+    if (digits_.empty())
+        digits_ = "0";
+
+    // Убираем лишние нули в дробной части
     while (scale_ > 0 && digits_.size() > 1 && digits_.back() == '0') {
         digits_.pop_back();
         --scale_;
     }
 
-    // Если осталось меньше цифр чем scale, дополним слева нулями
-    if (scale_ > 0 && static_cast<int>(digits_.size()) <= scale_) {
-        const int need = scale_ - static_cast<int>(digits_.size()) + 1;
-        digits_.insert(digits_.begin(), need, '0');
+    // Очень важная часть: если digits_ слишком короткое для текущего scale,
+    // нужно добавить ведущие нули
+    if (scale_ > 0) {
+        int integerDigits = static_cast<int>(digits_.size()) - scale_;
+        if (integerDigits <= 0) {
+            // Нужно добавить ведущие нули
+            int zerosToAdd = -integerDigits + 1; // +1 для целой части "0"
+            digits_.insert(0, static_cast<size_t>(zerosToAdd), '0');
+        }
     }
 
     // Ноль всегда без знака
-    if (digits_ == "0")
+    if (digits_ == "0") {
         negative_ = false;
+        scale_ = 0;
+    }
 }
 
 QString BigNumber::toQString() const
@@ -170,6 +196,7 @@ std::string BigNumber::toStdString() const
 
     const int n = static_cast<int>(digits_.size());
     const int split = n - scale_;
+
     if (split <= 0) {
         out += "0.";
         out.append(static_cast<size_t>(-split), '0');
@@ -180,6 +207,15 @@ std::string BigNumber::toStdString() const
     out.append(digits_.begin(), digits_.begin() + split);
     out.push_back('.');
     out.append(digits_.begin() + split, digits_.end());
+
+    // Убираем лишние нули в конце дробной части
+    while (!out.empty() && out.back() == '0' && out.find('.') != std::string::npos) {
+        out.pop_back();
+    }
+    if (!out.empty() && out.back() == '.') {
+        out.pop_back();
+    }
+
     return out;
 }
 
@@ -267,17 +303,28 @@ void BigNumber::alignScales(BigNumber& a, BigNumber& b)
 {
     if (a.scale_ == b.scale_)
         return;
-    if (a.scale_ < b.scale_) {
-        const int diff = b.scale_ - a.scale_;
+
+    // Вычисляем максимальный scale
+    int maxScale = std::max(a.scale_, b.scale_);
+
+    // Выравниваем scale у числа a
+    if (a.scale_ < maxScale) {
+        int diff = maxScale - a.scale_;
         a.digits_.append(static_cast<size_t>(diff), '0');
-        a.scale_ = b.scale_;
-    } else {
-        const int diff = a.scale_ - b.scale_;
-        b.digits_.append(static_cast<size_t>(diff), '0');
-        b.scale_ = a.scale_;
+        a.scale_ = maxScale;
     }
-    a.normalize();
-    b.normalize();
+
+    // Выравниваем scale у числа b
+    if (b.scale_ < maxScale) {
+        int diff = maxScale - b.scale_;
+        b.digits_.append(static_cast<size_t>(diff), '0');
+        b.scale_ = maxScale;
+    }
+
+    // Не вызываем normalize() здесь, чтобы не потерять выровненные нули
+    // Просто убедимся, что digits_ не пустая
+    if (a.digits_.empty()) a.digits_ = "0";
+    if (b.digits_.empty()) b.digits_ = "0";
 }
 
 std::pair<std::string, std::string> BigNumber::divModAbsIntStrings(const std::string& num,

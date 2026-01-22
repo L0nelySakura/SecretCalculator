@@ -3,6 +3,9 @@
 
 #include <QMainWindow>
 
+class QTimer;
+class QStackedWidget;
+
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -10,6 +13,7 @@ class MainWindow;
 QT_END_NAMESPACE
 
 class CalculatorModel;
+class SecretMenu;
 
 class MainWindow : public QMainWindow
 {
@@ -22,5 +26,17 @@ public:
 private:
     Ui::MainWindow *ui;
     CalculatorModel* model_ = nullptr;
+
+    QStackedWidget* stackedWidget_ = nullptr;
+    SecretMenu* secretMenu_ = nullptr;
+
+    QTimer* equalLongPressTimer_ = nullptr;
+    QTimer* secretCodeTimer_ = nullptr;
+    bool secretArmed_ = false;
+    QString secretCodeBuffer_;
+
+    void handleDigit(int digit);
+    void openSecretMenu();
+    void closeSecretMenu();
 };
 #endif // MAINWINDOW_H

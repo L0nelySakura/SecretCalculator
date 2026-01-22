@@ -21,6 +21,9 @@ set(PROJECT_SOURCES
         bignumber.cpp
         calculatormodel.h
         calculatormodel.cpp
+        secretmenu.h
+        secretmenu.cpp
+        secretmenu.ui
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
