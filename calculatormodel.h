@@ -61,6 +61,7 @@ private:
     void appendToken(const QString& token, LastToken newLast);
     void appendChar(QChar c, LastToken newLast);
     void trimTrailingSpaces();
+    QString truncateNumber(const QString& number) const;
 
     // правила скобок
     bool canCloseParen() const;

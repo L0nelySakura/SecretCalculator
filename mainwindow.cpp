@@ -36,8 +36,14 @@ MainWindow::MainWindow(QWidget *parent)
     model_ = new CalculatorModel(this);
 
     // Обновление UI от модели
-    connect(model_, &CalculatorModel::displayChanged, ui->lbl_display, &QLabel::setText);
-    connect(model_, &CalculatorModel::expressionChanged, ui->lbl_expression, &QLabel::setText);
+
+    connect(model_, &CalculatorModel::displayChanged, this, [this](const QString& text) {
+        ui->lbl_display->setText(formatWithSpaces(text, 15));
+    });
+
+    connect(model_, &CalculatorModel::expressionChanged, this, [this](const QString& text) {
+        ui->lbl_expression->setText(formatWithSpaces(text, 37));
+    });
 
     // Таймеры для секретного меню / секрета
     equalLongPressTimer_ = new QTimer(this);
@@ -105,6 +111,27 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+QString MainWindow::formatWithSpaces(const QString& text, int groupSize) {
+    if (groupSize <= 0 || text.isEmpty()) return text;
+
+    QString result;
+    int len = text.length();
+    int count = 0;
+
+    // Проходим по всем символам текста
+    for (int i = 0; i < len; i++) {
+        result.append(text[i]);
+        count++;
+
+        // Добавляем пробел после каждого groupSize символа
+        // (кроме последней группы)
+        if (count % groupSize == 0 && i != len - 1) {
+            result.append(' ');
+        }
+    }
+
+    return result;
 }
 
 void MainWindow::handleDigit(int digit)

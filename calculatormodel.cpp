@@ -61,6 +61,66 @@ void CalculatorModel::trimTrailingSpaces()
         expression_.chop(1);
 }
 
+QString CalculatorModel::truncateNumber(const QString& number) const
+{
+    if (number.isEmpty() || number == "Error")
+        return number;
+
+    const int maxDigits = 25;
+
+    bool negative = number.startsWith('-');
+    QString n = negative ? number.mid(1) : number;
+
+    int dotPos = n.indexOf('.');
+    QString intPart = (dotPos == -1) ? n : n.left(dotPos);
+    QString fracPart = (dotPos == -1) ? QString() : n.mid(dotPos + 1);
+
+    // считаем цифры до точки
+    int intDigits = 0;
+    for (QChar c : intPart) {
+        if (c.isDigit())
+            ++intDigits;
+    }
+
+    // ПЕРЕПОЛНЕНИЕ: до точки больше 25 цифр
+    if (intDigits > maxDigits) {
+        return QString(maxDigits, '9');
+    }
+
+    // иначе формируем число с ограничением общего числа цифр
+    QString result;
+    if (negative)
+        result.append('-');
+
+    int usedDigits = 0;
+
+    // целая часть
+    for (QChar c : intPart) {
+        if (c.isDigit()) {
+            if (usedDigits >= maxDigits)
+                break;
+            ++usedDigits;
+        }
+        result.append(c);
+    }
+
+    // дробная часть
+    if (!fracPart.isEmpty() && usedDigits < maxDigits) {
+        result.append('.');
+        for (QChar c : fracPart) {
+            if (!c.isDigit())
+                continue;
+            if (usedDigits >= maxDigits)
+                break;
+            result.append(c);
+            ++usedDigits;
+        }
+    }
+
+    return result;
+}
+
+
 QString CalculatorModel::currentNumber() const
 {
     if (last_ != LastToken::Number || currentNumberStart_ < 0)
@@ -309,6 +369,8 @@ void CalculatorModel::equals()
         emitAll();
         return;
     }
+
+    result = truncateNumber(result);
 
     // показываем итог; выражение переносим в верхнюю строку с "="
     const QString oldExpr = expression_;

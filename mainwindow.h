@@ -35,6 +35,8 @@ private:
     bool secretArmed_ = false;
     QString secretCodeBuffer_;
 
+    QString formatWithSpaces(const QString& text, int groupSize);
+
     void handleDigit(int digit);
     void openSecretMenu();
     void closeSecretMenu();
