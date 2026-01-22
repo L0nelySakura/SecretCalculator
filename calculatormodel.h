@@ -10,18 +10,18 @@ class CalculatorModel final : public QObject
 public:
     explicit CalculatorModel(QObject* parent = nullptr);
 
-    QString expression() const { return expression_; } // то, что показываем в lbl_expression
-    QString display() const { return display_; }       // то, что показываем в lbl_display
+    QString expression() const { return expression_; }
+    QString display() const { return display_; }
 
 public slots:
-    void clearAll();               // C
-    void inputDigit(int digit);    // 0..9
-    void inputDecimalPoint();      // .
-    void inputOperator(QChar op);  // + - * /
-    void inputParen();             // кнопка "()"
-    void toggleSign();             // +/-
-    void inputPercent();           // %
-    void equals();                 // =
+    void clearAll();
+    void inputDigit(int digit);
+    void inputDecimalPoint();
+    void inputOperator(QChar op);
+    void inputParen();
+    void toggleSign();
+    void inputPercent();
+    void equals();
 
 signals:
     void expressionChanged(const QString& expr);
@@ -44,30 +44,24 @@ private:
     int openParens_ = 0;
     int closeParens_ = 0;
 
-    // позиция начала текущего числа в expression_ (если last_==Number), иначе -1
     int currentNumberStart_ = -1;
 
-    // helpers: текущий "набираемый" кусок числа
     QString currentNumber() const;
-    int currentDigitsCount() const;        // цифры без '.' и без '-'
+    int currentDigitsCount() const;
     bool currentHasDecimalPoint() const;
 
     void startNewNumberIfNeeded();
     void setDisplayFromCurrentOrZero();
     void emitAll();
 
-    // модификации expression_
     void replaceCurrentNumber(const QString& newNumber);
     void appendToken(const QString& token, LastToken newLast);
     void appendChar(QChar c, LastToken newLast);
     void trimTrailingSpaces();
     QString truncateNumber(const QString& number) const;
 
-    // правила скобок
     bool canCloseParen() const;
     bool shouldOpenParen() const;
-
-    // вычисление
     bool tryEvaluate(QString* outResult, QString* outError = nullptr);
 };
 

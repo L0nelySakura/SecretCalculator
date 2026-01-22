@@ -10,19 +10,17 @@ constexpr int kMaxDigitsInNumber = 25;
 
 struct Tok {
     enum Kind { Number, Op, LParen, RParen, Percent } kind;
-    QString text; // для Number: строка числа; для Op: "+-*/"; для Percent: "%"
+    QString text;
 };
 
 static int precedence(const Tok& t) {
-    // % должен иметь такой же приоритет, как и деление
-    if (t.kind == Tok::Percent) return 2;        // postfix unary
+    if (t.kind == Tok::Percent) return 2;
     if (t.kind == Tok::Op && (t.text == "*" || t.text == "/")) return 2;
     if (t.kind == Tok::Op && (t.text == "+" || t.text == "-")) return 1;
     return 0;
 }
 
 static bool isLeftAssoc(const Tok& t) {
-    // % postfix, остальные бинарные left-assoc
     return t.kind != Tok::Percent;
 }
 
@@ -75,26 +73,22 @@ QString CalculatorModel::truncateNumber(const QString& number) const
     QString intPart = (dotPos == -1) ? n : n.left(dotPos);
     QString fracPart = (dotPos == -1) ? QString() : n.mid(dotPos + 1);
 
-    // считаем цифры до точки
     int intDigits = 0;
     for (QChar c : intPart) {
         if (c.isDigit())
             ++intDigits;
     }
 
-    // ПЕРЕПОЛНЕНИЕ: до точки больше 25 цифр
     if (intDigits > maxDigits) {
         return QString(maxDigits, '9');
     }
 
-    // иначе формируем число с ограничением общего числа цифр
     QString result;
     if (negative)
         result.append('-');
 
     int usedDigits = 0;
 
-    // целая часть
     for (QChar c : intPart) {
         if (c.isDigit()) {
             if (usedDigits >= maxDigits)
@@ -103,8 +97,6 @@ QString CalculatorModel::truncateNumber(const QString& number) const
         }
         result.append(c);
     }
-
-    // дробная часть
     if (!fracPart.isEmpty() && usedDigits < maxDigits) {
         result.append('.');
         for (QChar c : fracPart) {
@@ -207,13 +199,11 @@ void CalculatorModel::inputDigit(int digit)
     }
 
     if (currentDigitsCount() >= kMaxDigitsInNumber) {
-        // лимит 25 цифр
         emitAll();
         return;
     }
 
     QString n = currentNumber();
-    // ведущий 0 заменяем (если это ровно "0" или "-0")
     if (n == "0") {
         replaceCurrentNumber(QString::number(digit));
     } else if (n == "-0") {
@@ -228,12 +218,10 @@ void CalculatorModel::inputDigit(int digit)
 void CalculatorModel::inputDecimalPoint()
 {
     if (last_ != LastToken::Number) {
-        // После ')' или '%' точку не добавляем (неявное умножение запрещено)
         if (last_ == LastToken::CloseParen || last_ == LastToken::Percent) {
             emitAll();
             return;
         }
-        // начинаем число с 0.
         trimTrailingSpaces();
         currentNumberStart_ = expression_.size();
         appendToken("0.", LastToken::Number);
@@ -257,7 +245,6 @@ void CalculatorModel::inputOperator(QChar op)
     if (op != '+' && op != '-' && op != '*' && op != '/')
         return;
 
-    // Нельзя ставить оператор сразу после Start или '('
     if (last_ == LastToken::Start || last_ == LastToken::OpenParen) {
         emitAll();
         return;
@@ -265,7 +252,6 @@ void CalculatorModel::inputOperator(QChar op)
 
     trimTrailingSpaces();
 
-    // Если оператор уже стоит — заменяем его (удобно менять знак операции)
     if (last_ == LastToken::Operator) {
         if (!expression_.isEmpty())
             expression_.chop(1);
@@ -274,8 +260,6 @@ void CalculatorModel::inputOperator(QChar op)
         return;
     }
 
-    // После '%' тоже можно ставить оператор
-    // После числа или ')' — ок
     expression_ += op;
     last_ = LastToken::Operator;
     currentNumberStart_ = -1;
@@ -294,11 +278,14 @@ bool CalculatorModel::shouldOpenParen() const
     return (last_ == LastToken::Start || last_ == LastToken::Operator || last_ == LastToken::OpenParen);
 }
 
-void CalculatorModel::inputParen()
-{
+void CalculatorModel::inputParen() {
     trimTrailingSpaces();
 
-    if (shouldOpenParen() || !canCloseParen()) {
+    bool openAllowed = shouldOpenParen();
+
+    bool closeAllowed = canCloseParen();
+
+    if (openAllowed) {
         expression_ += '(';
         ++openParens_;
         last_ = LastToken::OpenParen;
@@ -307,17 +294,19 @@ void CalculatorModel::inputParen()
         return;
     }
 
-    expression_ += ')';
-    ++closeParens_;
-    last_ = LastToken::CloseParen;
-    currentNumberStart_ = -1;
+    if (closeAllowed) {
+        expression_ += ')';
+        ++closeParens_;
+        last_ = LastToken::CloseParen;
+        currentNumberStart_ = -1;
+        emitAll();
+        return;
+    }
     emitAll();
 }
-
 void CalculatorModel::toggleSign()
 {
     if (last_ != LastToken::Number) {
-        // начинаем новое число, чтобы можно было ввести "-..."
         trimTrailingSpaces();
         currentNumberStart_ = expression_.size();
         appendToken("0", LastToken::Number);
@@ -336,7 +325,6 @@ void CalculatorModel::toggleSign()
 
 void CalculatorModel::inputPercent()
 {
-    // Разрешаем % только после числа или ')'
     if (last_ == LastToken::Number || last_ == LastToken::CloseParen) {
         expression_ += '%';
         last_ = LastToken::Percent;
@@ -347,9 +335,7 @@ void CalculatorModel::inputPercent()
 
 void CalculatorModel::equals()
 {
-    // автозакрытие скобок
     if (!expression_.isEmpty()) {
-        // Если выражение заканчивается оператором/открывающей скобкой — просто ничего не делаем
         if (last_ == LastToken::Operator || last_ == LastToken::OpenParen) {
             emitAll();
             return;
@@ -364,22 +350,17 @@ void CalculatorModel::equals()
     QString result;
     QString err;
     if (!tryEvaluate(&result, &err)) {
-        // простое поведение: показываем Error в display, выражение оставляем
         display_ = "Error";
         emitAll();
         return;
     }
 
     result = truncateNumber(result);
-
-    // показываем итог; выражение переносим в верхнюю строку с "="
     const QString oldExpr = expression_;
     display_ = result;
     expression_ = oldExpr + "=";
     emit expressionChanged(expression_);
     emit displayChanged(display_);
-
-    // Дальше начинаем новое выражение с результата (типичное поведение)
     expression_ = result;
     last_ = LastToken::Number;
     currentNumberStart_ = 0;
@@ -389,7 +370,7 @@ void CalculatorModel::equals()
 static QVector<Tok> tokenize(const QString& expr)
 {
     QVector<Tok> toks;
-    Tok::Kind prevKind = Tok::Op; // как будто перед началом стоит оператор, чтобы первый '-' считался унарным
+    Tok::Kind prevKind = Tok::Op;
     int i = 0;
     while (i < expr.size()) {
         const QChar c = expr[i];
@@ -416,8 +397,6 @@ static QVector<Tok> tokenize(const QString& expr)
             continue;
         }
         if (c == '+' || c == '-' || c == '*' || c == '/') {
-            // Обрабатываем '-' как унарный минус, если он стоит в начале
-            // или после другого оператора/открывающей скобки/процента.
             const bool mayBeUnaryMinus =
                 (c == '-') &&
                 (prevKind == Tok::Op || prevKind == Tok::LParen || prevKind == Tok::Percent);
@@ -428,10 +407,7 @@ static QVector<Tok> tokenize(const QString& expr)
                 ++i;
                 continue;
             }
-            // Иначе трактуем '-' как знак числа — обработаем ниже в ветке Number.
         }
-
-        // Number: возможный ведущий '-' (знак), цифры и одна точка
         if (isDigitQChar(c) || c == '.' || c == '-') {
             int start = i;
             bool seenDot = false;
